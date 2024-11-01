@@ -246,7 +246,7 @@ more details, please refer to [Fine-tuning Demo](finetune_demo/README_en.md).
 You can launch a web-based demo using Gradio with the following command:
 
 ```shell
-python web_demo_gradio.py
+python web_demo_gradio_pdf.py
 ```
 
 ![web-demo](resources/web-demo2.png)

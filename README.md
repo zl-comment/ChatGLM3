@@ -214,7 +214,7 @@ git clone https://huggingface.co/THUDM/chatglm3-6b
 可以通过以下命令启动基于 Gradio 的网页版 demo：
 
 ```shell
-python web_demo_gradio.py
+python web_demo_gradio_pdf.py
 ```
 
 ![web-demo](resources/web-demo2.png)

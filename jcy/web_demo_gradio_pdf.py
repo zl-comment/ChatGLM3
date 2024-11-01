@@ -20,6 +20,7 @@ import os
 import gradio as gr
 import torch
 from threading import Thread
+import pdftext_extract as pdf
 
 from typing import Union, Annotated
 from pathlib import Path
@@ -34,11 +35,15 @@ from transformers import (
     StoppingCriteriaList,
     TextIteratorStreamer
 )
+#实例化pdf识别类
+PDFOCRProcessor=pdf.PDFOCRProcessor
+# 提示词
+prompt = "从以下文本中提取出详细的案件背景、当事人信息、案件事实、关键争议点、双方的诉讼请求和答辩、法院的判决理由及最终判决内容。包含：1. 诉讼背景、案件编号、当事人信息（包括上诉人、被上诉人、诉讼代理人等）2. 案件的基本事实和核心争议点（如涉案金额、付款情况等）3. 双方的诉讼请求和答辩内容4. 法院的判决理由，尤其是涉及的证据和法律依据5. 最终的判决结果及费用划分情况使用简明、准确的语言总结，确保包含所有主要信息和关键关系。并返回json格式数据。例如：{\"诉讼背景\": {\"案件编号\": \"\",\"当事人信息\": {\"上诉人（原审被告）\": {\"姓名\": \"\",\"出生日期\": \"\",\"住址\": \"\",\"委托诉讼代理人\": \"\"},\"被上诉人（原审原告）\": {\"姓名\": \"\",\"出生日期\": \"\",\"户籍地\": \"\",\"现住址\": \"\",\"委托诉讼代理人\": \"\"}}},\"案件基本事实和核心争议点\": {\"涉案金额\": \"\",\"付款情况\": \"\",\"核心争议点\": [\"\",\"\"]},\"双方诉讼请求和答辩内容\": {\"上诉人请求\": [\"\",\"\"],\"被上诉人答辩\": [\"\",\"\"]},\"法院判决理由及法律依据\": {\"一审法院\": {\"判决理由\": \"\",\"法律依据\": [\"\",\"\"]},\"二审法院\": {\"判决理由\": \"\",\"法律依据\": [\"\",\"\"]}},\"最终判决结果及费用划分情况\": {\"判决结果\": \"\",\"费用划分\": {\"一审案件受理费\": \"\",\"二审案件受理费\": \"\"}}}"
 
 ModelType = Union[PreTrainedModel, PeftModelForCausalLM]
 TokenizerType = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
 
-MODEL_PATH = os.environ.get('MODEL_PATH', '/home/cyh/jcy/LLaMA-Factory/fine-tune/888')
+MODEL_PATH = os.environ.get('MODEL_PATH', '/home/cyh/jcy/LLaMA-Factory/fine-tune/new_xjss_one')
 TOKENIZER_PATH = os.environ.get("TOKENIZER_PATH", MODEL_PATH)
 
 
@@ -147,9 +152,20 @@ def predict(history, max_length, top_p, temperature):
             yield history
 
 
+# 假设这是你已经写好的读取PDF文字的函数
+def extract_text_from_pdf(pdf_file):
+    # 这里是你的PDF处理逻辑
+    # 假设返回的是PDF文件中的文本内容
+    processor = PDFOCRProcessor(pdf_file=pdf_file)
+    combined_text = processor.process_pdf_and_images()
+
+
+    return prompt+combined_text
+
 with gr.Blocks() as demo:
-    gr.HTML("""<h1 align="center">ChatGLM3-6B Gradio Simple Demo</h1>""")
+    gr.HTML("""<h1 align="center">虚假诉讼大模型</h1>""")
     chatbot = gr.Chatbot()
+
 
     with gr.Row():
         with gr.Column(scale=4):
@@ -162,7 +178,16 @@ with gr.Blocks() as demo:
             max_length = gr.Slider(0, 32768, value=8192, step=1.0, label="Maximum length", interactive=True)
             top_p = gr.Slider(0, 1, value=0.8, step=0.01, label="Top P", interactive=True)
             temperature = gr.Slider(0.01, 1, value=0.6, step=0.01, label="Temperature", interactive=True)
+        
+        pdf_upload = gr.File(label="Upload PDF")
+        #upload_btn = gr.Button("Upload and Extract Text")
 
+         # 当文件上传时，执行这个函数
+        def handle_upload(pdf_file):
+            if pdf_file:
+                text = extract_text_from_pdf(pdf_file)
+                return text
+            return ""
 
     def user(query, history):
         return "", history + [[parse_text(query), ""]]
@@ -172,6 +197,10 @@ with gr.Blocks() as demo:
         predict, [chatbot, max_length, top_p, temperature], chatbot
     )
     emptyBtn.click(lambda: None, None, chatbot, queue=False)
+
+    # 将文件上传事件与处理函数连接
+    pdf_upload.change(handle_upload, inputs=[pdf_upload], outputs=[user_input])
+    
 
 demo.queue()
 demo.launch(server_name="127.0.0.1", server_port=7870, inbrowser=True, share=False)
